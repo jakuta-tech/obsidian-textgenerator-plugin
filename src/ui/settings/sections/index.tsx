@@ -1,13 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 // ---------- sections ----------
-import GeneralSetting from "./general";
+import AdvancedSetting from "./advanced";
+import AccountSettings from "./account";
 import ProviderSetting from "./provider";
 import DMPSetting from "./default-model-parameters";
 import ConsideredContextSetting from "./considered-context";
 import ExtractorOptionsSetting from "./extractors-options";
 import AutoSuggestSetting from "./auto-suggest";
+import SlashSuggestSetting from "./slash-suggest";
 import OptionsSetting from "./options";
 import Input from "../components/input";
+import OtherProvidersSetting from "./otherProviders";
+import { ProviderServer } from "#/scope/package-manager/package-manager";
+import useGlobal from "#/ui/context/global";
 // ------------------------------
 
 export type Register = {
@@ -20,6 +25,7 @@ export type Register = {
 };
 
 export default function SectionsMain() {
+  const global = useGlobal();
   const [items, setItems] = useState<
     Record<
       string,
@@ -36,8 +42,10 @@ export default function SectionsMain() {
       !searchTerm.length
         ? Object.entries(items)
         : Object.entries(items).filter(([key, val]) =>
-            `${val.term}`.includes(searchTerm)
-          ),
+          `${val.term} ${items[val.sectionId]?.term}`
+            .toLocaleLowerCase()
+            .includes(searchTerm.toLocaleLowerCase())
+        ),
     [items, searchTerm]
   );
 
@@ -80,21 +88,50 @@ export default function SectionsMain() {
   };
 
   return (
-    <div className="flex w-full flex-col gap-3">
-      <div className="flex w-full justify-between p-2">
-        <div></div>
+    <div className="plug-tg-flex plug-tg-w-full plug-tg-flex-col plug-tg-gap-3">
+      <div className="w-full gap-2 plug-tg-flex plug-tg-flex-col plug-tg-justify-between md:plug-tg-flex-row">
+        <div>
+          <h1>Text Generator</h1>
+        </div>
         <Input
           setValue={(val) => setSearchTerm(val.toLocaleLowerCase())}
           value={searchTerm}
+          className="plug-tg-input-sm plug-tg-w-full lg:plug-tg-w-auto"
           placeholder="Search For Option"
         />
       </div>
-      <GeneralSetting register={register} />
+
+      <div className="tags plug-tg-flex plug-tg-flex-wrap plug-tg-gap-2">
+        <a
+          className="tag"
+          href={`https://github.com/nhaouari/obsidian-textgenerator-plugin/releases/tag/${global.plugin.manifest.version}`}
+        >
+          V{global.plugin.manifest.version}
+        </a>
+        <a className="tag" href="https://bit.ly/tg_docs">
+          {"\u{1F4D6}"} Documentation
+        </a>
+        <a className="tag" href="https://bit.ly/Tg-discord">
+          {"\u{1F44B}"} Discord
+        </a>
+        <a className="tag" href="https://bit.ly/tg-twitter2">
+          {"\u{1F3A5}"} YouTube
+        </a>
+        <a className="tag" href="https://bit.ly/tg-twitter2">
+          {"\u{1F426}"} Twitter
+        </a>
+      </div>
+
       <ProviderSetting register={register} />
+      <AdvancedSetting register={register} />
+      {!!ProviderServer && <AccountSettings register={register} />}
+
       <DMPSetting register={register} />
+      <AutoSuggestSetting register={register} />
+      <SlashSuggestSetting register={register} />
       <ConsideredContextSetting register={register} />
       <ExtractorOptionsSetting register={register} />
-      <AutoSuggestSetting register={register} />
+      <OtherProvidersSetting register={register} />
       <OptionsSetting register={register} />
     </div>
   );

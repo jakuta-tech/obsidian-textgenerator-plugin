@@ -1,48 +1,169 @@
-import BaseProvider from "../base";
-import { Message } from "../../types";
-import { ChatOpenAI, OpenAIChatInput } from "langchain/chat_models/openai";
-import { HuggingFaceInference } from "langchain/llms/hf";
-import { mapMessagesToLangchainMessages } from "../../utils";
+/* eslint-disable no-debugger */
 import debug from "debug";
 import React from "react";
+
+import { ChatOpenAI, ClientOptions, OpenAIChatInput } from "@langchain/openai";
+
+// import { HuggingFaceInference } from "@langchain/community/llms/hf";
+
+import BaseProvider from "../base";
+import {
+  mapMessagesToLangchainMessages,
+  processPromisesSetteledBatch,
+} from "../../utils";
 import LLMProviderInterface, { LLMConfig } from "../interface";
-import { BaseChatModelParams } from "langchain/dist/chat_models/base";
-import { OPENAI_MODELS } from "#/constants";
+
+import { PromptTemplate } from "@langchain/core/prompts";
+import type { BaseMessageChunk } from "@langchain/core/messages";
+
+import {
+  chains,
+  splitters,
+  Message,
+  AI_MODELS,
+} from "../refs";
+import { Callbacks } from "@langchain/core/callbacks/manager";
+import JSON5 from "json5";
+import { Handlebars } from "#/helpers/handlebars-helpers";
 
 const logger = debug("textgenerator:LangchainProvider");
 
+
 export default class LangchainProvider
   extends BaseProvider
-  implements LLMProviderInterface
-{
+  implements LLMProviderInterface {
+  static id = "default (Langchain)";
+  static slug = "default" as any;
+  static provider = "Langchain";
+  static displayName = "Langchain LLM";
+
+  /** generate candidates in parallel instead of sending the variable n */
+  legacyN = false;
+
+  /** You can change the default headers here */
+  defaultHeaders?: Record<string, string | null>;
+
+  llmClass: any;
+
+  llmPredict = false;
   streamable = true;
-  id = "default";
-  getConfig(
-    options: LLMConfig
-  ): Partial<OpenAIChatInput & BaseChatModelParams> {
+
+  provider = LangchainProvider.provider;
+  id = LangchainProvider.id;
+  originalId = LangchainProvider.id;
+
+  default_values: any = {};
+
+  getConfig(options: LLMConfig) {
     return this.cleanConfig({
       openAIApiKey: options.api_key,
 
       // ------------Necessary stuff--------------
-      modelName: options.engine,
-      maxTokens: options.max_tokens,
-      temperature: options.temperature,
-      frequencyPenalty: options.frequency_penalty,
-      n: options.n,
-      stop: options.stop,
-      streaming: options.stream,
+      modelKwargs: options.modelKwargs,
+      modelName: options.model,
+      maxTokens: +options.max_tokens,
+      temperature: +options.temperature,
+      frequencyPenalty: +options.frequency_penalty || 0,
+      presencePenalty: +options.presence_penalty || 0,
+      n: options.n || 1,
+      stop: options.stop || undefined,
+      streaming: options.stream || false,
       maxRetries: 3,
-    });
+      headers: options.headers || undefined,
+    } as Partial<OpenAIChatInput>);
   }
 
-  getLLM(options: LLMConfig) {
-    return new ChatOpenAI({
+  async load() {
+    this.llmClass = ChatOpenAI;
+  }
+
+  async getLLM(_options: LLMConfig): Promise<any> {
+    const options = { ..._options };
+
+    let nh = {};
+
+    try {
+      if (options.headers)
+        nh = JSON5.parse(await Handlebars.compile(options.headers)(options));
+    } catch (e) {
+      console.error(e);
+    }
+
+    const headers = {
+      "User-Agent": undefined,
+      "HTTP-Referer": location.origin,
+      "X-Title": "obsidian-text-generator",
+      ...this.defaultHeaders,
+      ...nh
+    };
+
+
+    const Fetch = this.plugin.textGenerator.proxyService.getFetch(
+      this.corsBypass ||
+      this.default_values.corsBypass ||
+      options.otherOptions.corsBypass
+    )
+
+
+    const baseURL = options.basePath?.length
+      ? options.basePath.endsWith("/")
+        ? options.basePath.substring(0, options.basePath.length - 1)
+        : options.basePath
+      : undefined;
+
+
+
+    const clientOptions: ClientOptions & OpenAIChatInput = {
+      baseURL,
+      // @ts-ignore
+      basePath: baseURL,
+
+      // @ts-ignore
+      clientOptions: {
+        dangerouslyAllowBrowser: true,
+      },
+
+      dangerouslyAllowBrowser: true,
+      defaultQuery: options.bodyParams,
+      fetch: Fetch,
+      defaultHeaders: headers,
+    }
+
+    console.log({ clientOptions })
+    const llm = new (this.llmClass as typeof ChatOpenAI)({
       ...this.getConfig(options),
-    }) as any;
+      // @ts-ignore
+      clientOptions
+    }, clientOptions);
+
+    // @ts-ignore
+    llm.clientOptions ??= {};
+    // @ts-ignore
+    llm.clientOptions.fetch = Fetch;
+
+    return llm;
   }
 
-  getReqOptions(options: LLMConfig) {
-    return {} as any;
+  configMerger(options: Partial<LLMConfig>) {
+    return {
+      ...this.cleanConfig(this.plugin.settings),
+      ...this.cleanConfig(
+        this.plugin.settings.LLMProviderOptions[
+        this.id as keyof typeof this.plugin.settings
+        ]
+      ),
+      ...this.cleanConfig(options.otherOptions),
+      ...this.cleanConfig(options),
+      otherOptions: this.cleanConfig(
+        this.plugin.settings.LLMProviderOptions[
+        this.id as keyof typeof this.plugin.settings
+        ]
+      ),
+    };
+  }
+
+  getReqOptions(options: Partial<LLMConfig>) {
+    return { ...options } as any;
   }
 
   async generate(
@@ -51,7 +172,8 @@ export default class LangchainProvider
     onToken?: (
       token: string,
       first: boolean
-    ) => Promise<string | void | null | undefined>
+    ) => Promise<string | void | null | undefined>,
+    customConfig?: any
   ): Promise<string> {
     return new Promise(async (s, r) => {
       let alreadyBegainGenerating = false;
@@ -59,87 +181,118 @@ export default class LangchainProvider
       try {
         logger("generate", reqParams);
 
-        const params = {
-          ...this.cleanConfig(this.plugin.settings),
-          ...this.cleanConfig(reqParams.otherOptions),
-          ...this.cleanConfig(
-            this.plugin.settings.LLMProviderOptions[
-              this.id as keyof typeof this.plugin.settings
-            ]
-          ),
-
-          ...this.cleanConfig(reqParams),
-          otherOptions: this.cleanConfig(
-            this.plugin.settings.LLMProviderOptions[
-              this.id as keyof typeof this.plugin.settings
-            ]
-          ),
-        };
+        const params = this.configMerger(reqParams);
 
         // if the model is streamable
         params.stream = params.stream && this.streamable;
 
-        const chat = this.getLLM(params) as HuggingFaceInference;
+        const llm = (await this.getLLM(params));
 
         let first = true;
         let allText = "";
 
-        const llmFuncs: Parameters<
-          InstanceType<typeof ChatOpenAI>["predict"]
-        >["2"] = [
+        const llmFuncs: Callbacks = [
           {
-            ...(onToken &&
-              params.stream && {
-                async handleLLMNewToken(token: string) {
-                  const d = first;
-                  first = false;
-                  alreadyBegainGenerating = true;
-                  const tk = (await onToken(token, d)) || token;
-                  allText += tk;
-                  result += tk;
-                },
-              }),
+            ...(!!onToken &&
+              !!params.stream && {
+              async handleLLMNewToken(token: string) {
+                const d = first;
+                first = false;
+                alreadyBegainGenerating = true;
+                const tk = (await onToken(token, d)) || token;
+                allText += tk;
+                result += tk;
+              },
+            }),
 
             handleLLMEnd() {
-              console.log("ended");
               if (params.stream) s(allText);
             },
           },
         ];
 
-        result = reqParams.llmPredict
-          ? await (chat as any as ChatOpenAI).predict(
-              messages.length > 1
-                ? // user: test1
-                  // assistant: test2
-                  // ...
-                  messages.map((msg) => `${msg.role}:${msg.content}`).join("\n")
-                : // test1
-                  messages[0].content,
+        if (customConfig?.chain?.type) {
+          const textSplitter = new splitters.RecursiveCharacterTextSplitter({
+            chunkSize: 1000,
+            ...customConfig?.splitter,
+          });
+
+          const docs = await textSplitter.createDocuments([
+            chatToString(messages),
+          ]);
+
+          // This convenience function creates a document chain prompted to summarize a set of documents.
+          const chain = getChain(
+            customConfig?.chain.loader,
+            llm,
+            customConfig.chain
+          );
+
+          const res = await chain.invoke(
+            {
+              input_documents: docs,
+              signal: reqParams.requestParams?.signal || undefined,
+            },
+            {
+              callbacks: llmFuncs,
+              configurable: {
+                fetch: this.plugin.textGenerator.proxyService.getFetch(
+                  this.corsBypass ||
+                  this.default_values.corsBypass ||
+                  customConfig.corsBypass
+                ),
+              },
+            }
+          );
+
+          result = res.text;
+        } else {
+          let r: any;
+          let res: BaseMessageChunk = {} as any;
+
+          console.log({ messages, k: "invoked", llmpredict: reqParams.llmPredict, llmPredict2: this.llmPredict })
+          if (reqParams.llmPredict || this.llmPredict)
+            r = await (llm as any as ChatOpenAI).invoke(
+              chatToString(messages)
+              ,
               {
                 signal: params.requestParams?.signal || undefined,
                 ...this.getReqOptions(params),
-              },
-              llmFuncs
-            )
-          : (
-              await chat.predictMessages(
-                mapMessagesToLangchainMessages(messages),
-                {
-                  signal: params.requestParams?.signal || undefined,
-                },
-                llmFuncs
+
+                callbacks: llmFuncs,
+                // options: {
+                //   body: params.bodyParams,
+                // },
+              }
+            );
+          else
+            r = await (llm as any as ChatOpenAI).invoke(
+              mapMessagesToLangchainMessages(messages),
+              {
+                signal: params.requestParams?.signal || undefined,
+                ...this.getReqOptions(params),
+                callbacks: llmFuncs,
+              }
+            );
+
+          if (typeof r == "string") res.content = r;
+          else res = r;
+
+          if (typeof res.content == "string") result = res.content;
+          else
+            result = res.content
+              .map((c) =>
+                c.type == "image_url" ? `![](${c.image_url})` : c.type == "text" ? c.text : ""
               )
-            ).content;
+              .join("\n");
+        }
 
         // console.log("used Tokens: ", { allTokens });
         logger("generate end", {
           result,
         });
 
-        if (!params.streaming) {
-          s(result);
-        }
+        s(result);
       } catch (errorRequest: any) {
         logger("generate error", errorRequest);
 
@@ -160,30 +313,50 @@ export default class LangchainProvider
       try {
         logger("generateMultiple", reqParams);
 
-        const params = {
-          ...this.cleanConfig(this.plugin.settings),
-          ...this.cleanConfig(
-            this.plugin.settings[this.id as keyof typeof this.plugin.settings]
-          ),
-          ...this.cleanConfig(reqParams.otherOptions),
-          ...this.cleanConfig(reqParams),
-        };
-
-        const chat = this.getLLM(params);
-
-        const requestResults = await (chat as ChatOpenAI).generate(
-          [mapMessagesToLangchainMessages(messages)],
-          {
-            signal: params.requestParams?.signal || undefined,
-            ...this.getReqOptions(params),
-          }
-        );
+        const params = this.configMerger(reqParams);
+        const llm = await this.getLLM(params);
+        let requestResults: any[] = [];
+        if (this.legacyN) {
+          await processPromisesSetteledBatch(
+            Array.from({ length: reqParams.n || 1 }).map(async () => {
+              requestResults.push(
+                ...(
+                  await (llm).generate(
+                    reqParams.llmPredict || this.llmPredict
+                      ? [chatToString(messages)]
+                      : [
+                        mapMessagesToLangchainMessages(
+                          messages
+                        ) as any as string,
+                      ],
+                    {
+                      signal: params.requestParams?.signal || undefined,
+                      ...this.getReqOptions(params),
+                    }
+                  )
+                ).generations[0]
+              );
+            }),
+            2
+          );
+        } else
+          requestResults = (
+            await (llm).generate(
+              reqParams.llmPredict || this.llmPredict
+                ? [chatToString(messages)]
+                : [mapMessagesToLangchainMessages(messages) as any as string],
+              {
+                signal: params.requestParams?.signal || undefined,
+                ...this.getReqOptions(params),
+              }
+            )
+          ).generations[0];
 
         logger("generateMultiple end", {
           requestResults,
         });
 
-        s(requestResults.generations[0].map((a: any) => a.text));
+        s(requestResults.map((a: any) => a.text));
       } catch (errorRequest: any) {
         logger("generateMultiple error", errorRequest);
         return r(errorRequest);
@@ -202,10 +375,9 @@ export default class LangchainProvider
     messages: Message[],
     reqParams: Partial<LLMConfig>
   ): ReturnType<LLMProviderInterface["calcTokens"]> {
-    const model = reqParams.engine;
+    const model = reqParams.model;
     const modelInfo =
-      OPENAI_MODELS[model as keyof typeof OPENAI_MODELS] ||
-      OPENAI_MODELS["gpt-3.5-turbo"];
+      AI_MODELS[model as keyof typeof AI_MODELS] || AI_MODELS["gpt-3.5-turbo"];
 
     if (!modelInfo)
       return {
@@ -232,7 +404,7 @@ export default class LangchainProvider
     for (const message of messages) {
       numTokens += tokensPerMessage;
       for (const [key, value] of Object.entries(message)) {
-        numTokens += encoder.encode(value).length;
+        numTokens += encoder.encode(value as any).length;
         if (key === "name") {
           numTokens += tokensPerName;
         }
@@ -250,4 +422,62 @@ export default class LangchainProvider
   RenderSettings(props: Parameters<LLMProviderInterface["RenderSettings"]>[0]) {
     return <></>;
   }
+}
+
+
+
+function contentToString(content: Message["content"]) {
+  return typeof content == "string" ? content : Object.values(content).join(' ')
+}
+
+function chatToString(messages: Message[] = []) {
+  return messages.length > 1
+    ? // user: test1
+    // assistant: test2
+    // ...
+    messages.map((msg) => {
+      return `${msg.role}:${contentToString(msg.content)}`
+    }).join("\n")
+    : // test1
+    contentToString(messages[0].content)
+    ;
+}
+
+function getChain(chainName: string, llm: any, config: any) {
+  const loader = chains[
+    (chainName as keyof typeof chains) || "loadSummarizationChain"
+    // @ts-ignore
+  ] as typeof chains.loadSummarizationChain;
+
+  const chain = loader(llm, {
+    maxTokens: 500,
+
+    prompt: config.prompt
+      ? PromptTemplate.fromTemplate(config.prompt)
+      : undefined,
+
+    questionPrompt: config.questionPrompt
+      ? PromptTemplate.fromTemplate(config.questionPrompt)
+      : undefined,
+
+    refinePrompt: config.refinePrompt
+      ? PromptTemplate.fromTemplate(config.refinePrompt)
+      : undefined,
+
+    combinePrompt: config.combinePrompt
+      ? PromptTemplate.fromTemplate(config.combinePrompt)
+      : undefined,
+
+    combineMapPrompt: config.combineMapPrompt
+      ? PromptTemplate.fromTemplate(config.combineMapPrompt)
+      : undefined,
+
+    ...config,
+    // verbose: true,
+  });
+
+  // fsr its not getting set from the properties
+  // @ts-ignore
+  chain.maxTokens = config?.chain?.maxTokens || 500;
+  return chain;
 }

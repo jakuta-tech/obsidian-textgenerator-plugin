@@ -4,11 +4,16 @@ import SettingItem from "../../components/item";
 import SettingsSection from "../../components/section";
 import type { Register } from "..";
 import Input from "../../components/input";
+import DropdownSearch from "../../components/dropdownSearch";
+import clsx from "clsx";
 
 export const WhisperProviderName = "whisper";
 
-const default_values = {
+export const default_values = {
   base_path: "https://api.openai.com/v1",
+  model: "whisper-1",
+  api_key: "",
+  api_version: "",
 };
 
 export default function WhisperProviderSetting(props: { register: Register }) {
@@ -25,9 +30,9 @@ export default function WhisperProviderSetting(props: { register: Register }) {
     <>
       <SettingsSection
         title="Whisper Settings"
-        className="flex w-full flex-col"
-        collapsed={!props.register.searchTerm.length}
-        hidden={!props.register.activeSections[sectionId]}
+        className="plug-tg-flex plug-tg-w-full plug-tg-flex-col"
+        register={props.register}
+        id={sectionId}
       >
         <SettingItem
           name="BasePath"
@@ -37,8 +42,83 @@ export default function WhisperProviderSetting(props: { register: Register }) {
         >
           <Input
             value={config.basePath || default_values.base_path}
+            placeholder={default_values.base_path}
             setValue={async (val) => {
               config.basePath = val;
+              await global.plugin.saveSettings();
+              global.triggerReload();
+            }}
+          />
+        </SettingItem>
+
+        <SettingItem
+          name="API Key"
+          description="default to openai provider's apikey"
+          register={props.register}
+          sectionId={sectionId}
+        >
+          <Input
+            type="password"
+            value={config.api_key || default_values.api_key}
+            setValue={async (val) => {
+              config.api_key = val;
+              await global.plugin.saveSettings();
+              global.triggerReload();
+            }}
+          />
+        </SettingItem>
+
+
+
+        <SettingItem
+          name="Model"
+          description="default to whisper-1"
+          register={props.register}
+          sectionId={sectionId}
+        >
+          <Input
+            value={config.model || default_values.model}
+            setValue={async (val) => {
+              config.model = val;
+              await global.plugin.saveSettings();
+              global.triggerReload();
+            }}
+          />
+        </SettingItem>
+
+
+        <SettingItem
+          name="API Version"
+          description="Api version (Azure only)"
+          register={props.register}
+          className={clsx({
+            "plug-tg-opacity-60": !config.api_version,
+          })}
+          sectionId={sectionId}
+        >
+          <Input
+            value={config.api_version || default_values.api_version}
+            placeholder="2024-02-01"
+            setValue={async (val) => {
+              config.api_version = val;
+              await global.plugin.saveSettings();
+              global.triggerReload();
+            }}
+          />
+        </SettingItem>
+
+        <SettingItem
+          name="Language"
+          description="default to (none)"
+          register={props.register}
+          sectionId={sectionId}
+        >
+          <DropdownSearch
+            values={languages}
+            value={config.language}
+            // placeholder="(none)"
+            setValue={async (val) => {
+              config.language = val;
               await global.plugin.saveSettings();
               global.triggerReload();
             }}
@@ -48,3 +128,63 @@ export default function WhisperProviderSetting(props: { register: Register }) {
     </>
   );
 }
+
+const languages = [
+  "Afrikaans",
+  "Arabic",
+  "Armenian",
+  "Azerbaijani",
+  "Belarusian",
+  "Bosnian",
+  "Bulgarian",
+  "Catalan",
+  "Chinese",
+  "Croatian",
+  "Czech",
+  "Danish",
+  "Dutch",
+  "English",
+  "Estonian",
+  "Finnish",
+  "French",
+  "Galician",
+  "German",
+  "Greek",
+  "Hebrew",
+  "Hindi",
+  "Hungarian",
+  "Icelandic",
+  "Indonesian",
+  "Italian",
+  "Japanese",
+  "Kannada",
+  "Kazakh",
+  "Korean",
+  "Latvian",
+  "Lithuanian",
+  "Macedonian",
+  "Malay",
+  "Marathi",
+  "Maori",
+  "Nepali",
+  "Norwegian",
+  "Persian",
+  "Polish",
+  "Portuguese",
+  "Romanian",
+  "Russian",
+  "Serbian",
+  "Slovak",
+  "Slovenian",
+  "Spanish",
+  "Swahili",
+  "Swedish",
+  "Tagalog",
+  "Tamil",
+  "Thai",
+  "Turkish",
+  "Ukrainian",
+  "Urdu",
+  "Vietnamese",
+  "Welsh",
+];

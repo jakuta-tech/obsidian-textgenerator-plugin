@@ -1,6 +1,7 @@
 import { App } from "obsidian";
 import PDFExtractor from "./pdf-extractor";
-import WebPageExtractor from "./web-page-extractor";
+import WebPageExtractorHTML from "./web-extractor";
+import WebPageExtractor from "./web-extractor/markdown";
 import YoutubeExtractor from "./youtube-extractor";
 import AudioExtractor from "./audio-extractor";
 import { Extractor } from "./extractor";
@@ -8,22 +9,57 @@ import TextGeneratorPlugin from "../main";
 import debug from "debug";
 import ImageExtractor from "./image-extractor";
 import ImageExtractorEmbded from "./image-extractor-embded";
+import RssExtractor from "./rss-extractor";
 const logger = debug("textgenerator:Extractor");
+
+export const listOfUsableExtractors = [
+  "PDFExtractor",
+  "WebPageExtractor",
+  "YoutubeExtractor",
+  "AudioExtractor",
+  "ImageExtractor",
+  "ImageExtractorEmbded",
+  "RssExtractor",
+];
 
 // Add the new Extractor here
 export const Extractors = {
   PDFExtractor,
   WebPageExtractor,
+  WebPageExtractorHTML,
   YoutubeExtractor,
   AudioExtractor,
   ImageExtractor,
   ImageExtractorEmbded,
+  RssExtractor,
 } as const;
+
+export const ExtractorSlug = {
+  pdf: "PDFExtractor",
+
+  web: "WebPageExtractor",
+  web_md: "WebPageExtractor",
+  web_html: "WebPageExtractorHTML",
+
+  yt: "YoutubeExtractor",
+  youtube: "YoutubeExtractor",
+  audio: "AudioExtractor",
+  img: "ImageExtractor",
+  ImgEmbd: "ImageExtractorEmbded",
+  rss: "RssExtractor",
+} as const;
+
+export const UnExtractorSlug: Record<string, string> = {};
+for (const key in ExtractorSlug) {
+  if (Object.prototype.hasOwnProperty.call(ExtractorSlug, key)) {
+    UnExtractorSlug[ExtractorSlug[key as keyof typeof ExtractorSlug]] = key;
+  }
+}
 
 export type ExtractorMethod = keyof typeof Extractors;
 
-export class ContentExtractor<d> {
-  private extractor: Extractor<d>;
+export class ContentExtractor {
+  private extractor: Extractor;
   private app: App;
   private plugin: TextGeneratorPlugin;
   constructor(app: App, plugin: TextGeneratorPlugin) {
@@ -36,29 +72,36 @@ export class ContentExtractor<d> {
     this.extractor = this.createExtractor(extractorName);
   }
 
-  async convert(doc: d): Promise<string> {
+  async convert(docPath: string, otherOptions?: any): Promise<string> {
     // Use the selected splitter to split the text
     this.plugin.startProcessing(false);
-    const text = await this.extractor.convert(doc);
+    const text = await this.extractor.convert(
+      docPath.trimStart().trimEnd(),
+      otherOptions
+    );
     this.plugin.endProcessing(false);
     return text;
   }
 
-  async extract(filePath: string) {
-    return this.extractor.extract(filePath);
+  async extract(filePath: string, filecontent?: string) {
+    const fileContent =
+      filecontent ||
+      (await this.app.vault.cachedRead(
+        this.app.vault.getAbstractFileByPath(filePath) as any
+      ));
+
+    return this.extractor.extract(filePath, fileContent);
   }
 
   private createExtractor(extractorName: ExtractorMethod) {
     if (!Extractors[extractorName])
       throw new Error(`Unknown Extractor: ${extractorName}`);
-    return new Extractors[extractorName](this.app, this.plugin) as Extractor<d>;
+    return new Extractors[extractorName](this.app, this.plugin) as Extractor;
   }
 }
 
 export const getExtractorMethods = () => {
-  return Object.keys(Extractors).filter(
-    (e) => !(parseInt(e) || e === "0")
-  ) as unknown as ExtractorMethod[];
+  return listOfUsableExtractors as unknown as ExtractorMethod[];
 };
 
 export { Extractor };

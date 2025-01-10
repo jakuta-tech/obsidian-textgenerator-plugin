@@ -1,64 +1,76 @@
 import LangchainBase from "./base";
 
-import {
-  ChatGooglePaLM,
-  GooglePaLMChatInput,
-} from "langchain/chat_models/googlepalm";
+import { GooglePaLMChatInput } from "@langchain/community/chat_models/googlepalm";
 import React from "react";
 import LLMProviderInterface, { LLMConfig } from "../interface";
-import SettingItem from "#/ui/settings/components/item";
-import useGlobal from "#/ui/context/global";
 import { IconExternalLink } from "@tabler/icons-react";
-import { useToggle } from "usehooks-ts";
-import Input from "#/ui/settings/components/input";
 import debug from "debug";
+
+import { useGlobal, SettingItem, Input } from "../refs";
 
 const logger = debug("textgenerator:llmProvider:palm");
 
-const id = "palm";
+const id = "Google Palm (Langchain)" as const;
 export default class LangchainPalmProvider
   extends LangchainBase
-  implements LLMProviderInterface
-{
+  implements LLMProviderInterface {
+  static provider = "Langchain";
+  static id = id;
+  static slug = "palm" as const;
+  static displayName = "Google Palm";
+
+  mobileSupport = false;
   streamable = false;
-  id = id;
+
+  id = LangchainPalmProvider.id;
+  provider = LangchainPalmProvider.provider;
+  originalId = LangchainPalmProvider.id;
   getConfig(options: LLMConfig): Partial<GooglePaLMChatInput> {
     return this.cleanConfig({
       apiKey: options.api_key,
 
       // ------------Necessary stuff--------------
-      modelName: options.engine,
+      modelKwargs: options.modelKwargs,
+      //   modelName: options.model,
       maxTokens: options.max_tokens,
       temperature: options.temperature,
-      frequencyPenalty: options.frequency_penalty,
+      frequencyPenalty: +options.frequency_penalty || 0,
+      presencePenalty: +options.presence_penalty || 0,
       n: options.n,
       stop: options.stop,
       streaming: options.stream,
       maxRetries: 3,
+      headers: options.headers || undefined as any,
     });
   }
 
-  getLLM(options: LLMConfig) {
-    return new ChatGooglePaLM({
-      ...this.getConfig(options),
-    });
+  async load() {
+    const { ChatGooglePaLM } = await import("@langchain/community/chat_models/googlepalm");
+    this.llmClass = ChatGooglePaLM;
   }
+
+  //   async getLLM(options: LLMConfig) {
+  //     return new ChatGooglePaLM({
+  //       ...this.getConfig(options),
+  //     });
+  //   }
 
   RenderSettings(props: Parameters<LLMProviderInterface["RenderSettings"]>[0]) {
     const global = useGlobal();
 
+    const id = props.self.id;
     const config = (global.plugin.settings.LLMProviderOptions[id] ??= {});
 
     return (
       <>
         <SettingItem
-          name="Palm api key"
+          name="Api Key"
           register={props.register}
           sectionId={props.sectionId}
         >
           <Input
             type="password"
-            value={config.api_key}
+            value={config.api_key || ""}
             setValue={async (value) => {
               config.api_key = value;
               global.plugin.encryptAllKeys();
@@ -74,48 +86,20 @@ export default class LangchainPalmProvider
           sectionId={props.sectionId}
         >
           <Input
-            value={config.palmApiUrl}
+            value={config.basePath}
             placeholder="Enter your API BasePath"
             setValue={async (value) => {
-              config.palmApiUrl = value;
+              config.basePath = value;
               global.triggerReload();
               // TODO: it could use a debounce here
               await global.plugin.saveSettings();
             }}
           />
         </SettingItem>
-        <div className="flex flex-col gap-2">
-          <div className="text-lg opacity-70">Useful links</div>
-          <a href="https://beta.openai.com/signup/">
-            <SettingItem
-              name="Create account OpenAI"
-              className="text-xs opacity-50 hover:opacity-100"
-              register={props.register}
-              sectionId={props.sectionId}
-            >
-              <IconExternalLink />
-            </SettingItem>
-          </a>
-          <a href="https://beta.openai.com/docs/api-reference/introduction">
-            <SettingItem
-              name="API documentation"
-              className="text-xs opacity-50 hover:opacity-100"
-              register={props.register}
-              sectionId={props.sectionId}
-            >
-              <IconExternalLink />
-            </SettingItem>
-          </a>
-          <a href="https://beta.openai.com/docs/models/overview">
-            <SettingItem
-              name="more information"
-              className="text-xs opacity-50 hover:opacity-100"
-              register={props.register}
-              sectionId={props.sectionId}
-            >
-              <IconExternalLink />
-            </SettingItem>
-          </a>
+        <div className="plug-tg-flex plug-tg-flex-col plug-tg-gap-2">
+          <div className="plug-tg-text-lg plug-tg-opacity-70">
+            Recommended to use Google GenerativeAI instead
+          </div>
         </div>
       </>
     );

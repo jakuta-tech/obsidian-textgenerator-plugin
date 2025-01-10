@@ -1,12 +1,12 @@
 import { App, PluginSettingTab } from "obsidian";
-import TextGeneratorPlugin from "src/main";
-import packageJson from "package.json";
+import TextGeneratorPlugin from "#/main";
 
 import { createRoot } from "react-dom/client";
 import React from "react";
 import { GlobalProvider } from "../context/global";
 
 import SectionsMain from "./sections";
+import ReloadPluginPopup from "./components/reloadPlugin";
 
 export default class TextGeneratorSettingTab extends PluginSettingTab {
   plugin: TextGeneratorPlugin;
@@ -15,29 +15,6 @@ export default class TextGeneratorSettingTab extends PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
     this.app = app;
-    let models = new Map();
-    if (this.plugin.settings.models?.size > 0) {
-      models = this.plugin.settings.models;
-    } else {
-      [
-        "gpt-3.5-turbo",
-        "gpt-4",
-        "gpt-3.5-turbo-16k",
-        "gpt-3.5-turbo-16k-0613",
-        "gpt-3.5-turbo-0613",
-        "gpt-4-0314",
-        "gpt-4-0613",
-        "gpt-4-32k-0613",
-        "text-davinci-003",
-        "text-davinci-002",
-        "text-davinci-001",
-        "text-curie-001",
-        "text-babbage-001",
-        "text-ada-001",
-      ].forEach((e) => models.set(e, ""));
-      this.plugin.settings.models = models;
-      this.plugin.saveSettings();
-    }
   }
 
   async reloadPlugin() {
@@ -51,52 +28,13 @@ export default class TextGeneratorSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this;
-
     containerEl.empty();
-    containerEl.addClass("gapper");
-
-    // title
-    containerEl.createEl("h1", {
-      text: "Text Generator",
-    });
-
-    // tags
-    containerEl
-      .createDiv("el", (el) => {
-        el.addClass("tags");
-        el.createEl("a", {
-          text: `Version ${packageJson.version}`,
-          cls: "tag",
-        });
-        el.createEl("a", {
-          text: "Discord \u{1F44B}",
-          href: "https://bit.ly/Tg-discord",
-          cls: "tag",
-        });
-        el.createEl("a", {
-          text: " Documentation \u{1F4D6}",
-          href: "https://bit.ly/tg-doc",
-          cls: "tag",
-        });
-        el.createEl("a", {
-          text: " Twitter \u{1F426}",
-          href: "https://bit.ly/tg-twitter2",
-          cls: "tag",
-        });
-        el.createEl("a", {
-          text: " YouTube \u{1F3A5}",
-          href: "https://bit.ly/tg-youtube2",
-          cls: "tag",
-        });
-      })
-      .addClass("pb-4");
-
-    const el = containerEl.createDiv("div");
-
-    const sections = createRoot(el);
+    const div = containerEl.createDiv("div");
+    const sections = createRoot(div);
 
     sections.render(
       <GlobalProvider plugin={this.plugin}>
+        <ReloadPluginPopup />
         <SectionsMain />
       </GlobalProvider>
     );

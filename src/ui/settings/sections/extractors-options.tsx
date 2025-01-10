@@ -62,9 +62,9 @@ export default function ExtractorsOptionsSetting(props: {
   return (
     <SettingsSection
       title="Extractors Options"
-      className="flex w-full flex-col"
-      collapsed={!props.register.searchTerm.length}
-      hidden={!props.register.activeSections[sectionId]}
+      className="plug-tg-flex plug-tg-w-full plug-tg-flex-col"
+      register={props.register}
+      id={sectionId}
     >
       {listOfOptions
         .filter((d) => !contextNotForTemplate.contains(d))

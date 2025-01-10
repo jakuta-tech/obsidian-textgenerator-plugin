@@ -1,30 +1,40 @@
-import React, { useId } from "react";
+import React, { useEffect, useId } from "react";
 import useGlobal from "../../context/global";
 import SettingItem from "../components/item";
 import SettingsSection from "../components/section";
 import Input from "../components/input";
 import type { Register } from ".";
 import { z } from "zod";
+import { useDebounceValue } from "usehooks-ts";
 
 const MaxTokensSchema = z.number().min(0);
-const TemperatureSchema = z.number().min(0).max(1);
-const FrequencySchema = z.number().min(-20).max(20);
+const TemperatureSchema = z.number().min(0).max(2);
+const FrequencySchema = z.number().min(-2).max(2);
 const TimeoutSchema = z.number().min(0);
 
 export default function DMPSetting(props: { register: Register }) {
   const global = useGlobal();
   const sectionId = useId();
 
+  const [debouncedMaxTokens] = useDebounceValue(
+    global.plugin.settings.max_tokens,
+    400
+  );
+
+  useEffect(() => {
+    global.plugin.updateStatusBar("");
+  }, [debouncedMaxTokens]);
+
   return (
     <SettingsSection
       title="Default model parameters"
-      className="flex w-full flex-col"
-      collapsed={!props.register.searchTerm.length}
-      hidden={!props.register.activeSections[sectionId]}
+      className="plug-tg-flex plug-tg-w-full plug-tg-flex-col"
+      register={props.register}
+      id={sectionId}
     >
       <h5>You can specify more parameters in the Frontmatter YAML</h5>
       <a
-        className="linkMoreInfo"
+        className="text-xs"
         href="https://beta.openai.com/docs/api-reference/completions"
       >
         API documentation
@@ -37,6 +47,7 @@ export default function DMPSetting(props: { register: Register }) {
         sectionId={sectionId}
       >
         <Input
+          type="number"
           value={global.plugin.settings.max_tokens}
           placeholder="max_tokens"
           validator={MaxTokensSchema}
@@ -56,6 +67,7 @@ export default function DMPSetting(props: { register: Register }) {
         sectionId={sectionId}
       >
         <Input
+          type="number"
           value={global.plugin.settings.temperature}
           placeholder="temperature"
           validator={TemperatureSchema}
@@ -75,6 +87,7 @@ export default function DMPSetting(props: { register: Register }) {
         sectionId={sectionId}
       >
         <Input
+          type="number"
           value={global.plugin.settings.frequency_penalty}
           placeholder="frequency_penalty"
           validator={FrequencySchema}
@@ -94,6 +107,7 @@ export default function DMPSetting(props: { register: Register }) {
         sectionId={sectionId}
       >
         <Input
+          type="number"
           placeholder="Timeout"
           value={global.plugin.settings.requestTimeout}
           validator={TimeoutSchema}
@@ -128,22 +142,6 @@ export default function DMPSetting(props: { register: Register }) {
               `
 `
             );
-            await global.plugin.saveSettings();
-            global.triggerReload();
-          }}
-        />
-      </SettingItem>
-      <SettingItem
-        name="Streaming"
-        description="Enable streaming for commands Generate Text and Generate Text(with metadata)"
-        register={props.register}
-        sectionId={sectionId}
-      >
-        <Input
-          type="checkbox"
-          value={"" + global.plugin.settings.stream}
-          setValue={async (val) => {
-            global.plugin.settings.stream = val == "true";
             await global.plugin.saveSettings();
             global.triggerReload();
           }}

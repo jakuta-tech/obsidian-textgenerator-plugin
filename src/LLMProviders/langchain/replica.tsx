@@ -1,36 +1,44 @@
 import LangchainBase from "./base";
-import { Replicate, ReplicateInput } from "langchain/llms/replicate";
+import { Replicate, ReplicateInput } from "@langchain/community/llms/replicate";
 import React from "react";
 import LLMProviderInterface, { LLMConfig } from "../interface";
 import SettingItem from "#/ui/settings/components/item";
 import useGlobal from "#/ui/context/global";
 import { IconExternalLink } from "@tabler/icons-react";
-import { useToggle } from "usehooks-ts";
 import Input from "#/ui/settings/components/input";
-import { BaseLLMParams } from "langchain/dist/llms/base";
+import { BaseLLMParams } from "@langchain/core/language_models/llms";
 import debug from "debug";
 
 const logger = debug("textgenerator:llmProvider:replicated");
 
-const id = "replicated";
+const id = "Replica (Langchain)" as const;
 export default class LangchainReplicaProvider
   extends LangchainBase
-  implements LLMProviderInterface
-{
-  id = id;
+  implements LLMProviderInterface {
+  static provider = "Langchain";
+  static id = id;
+  static slug = "replica" as const;
+  static displayName = "Replica";
+
   streamable = false;
+  llmPredict = true;
+
+  id = LangchainReplicaProvider.id;
+  provider = LangchainReplicaProvider.provider;
+  originalId = LangchainReplicaProvider.id;
   getConfig(options: LLMConfig): Partial<ReplicateInput & BaseLLMParams> {
     console.log(options);
     return this.cleanConfig({
       apiKey: options.api_key,
 
       // ------------Necessary stuff--------------
-      model: options.engine as any,
+      model: options.model as any,
       maxRetries: 3,
+      headers: options.headers || undefined as any,
     });
   }
 
-  getLLM(options: LLMConfig) {
+  async getLLM(options: LLMConfig) {
     return new Replicate({
       ...this.getConfig(options),
     } as any);
@@ -39,6 +47,7 @@ export default class LangchainReplicaProvider
   RenderSettings(props: Parameters<LLMProviderInterface["RenderSettings"]>[0]) {
     const global = useGlobal();
 
+    const id = props.self.id;
     const config = (global.plugin.settings.LLMProviderOptions[id] ??= {});
     return (
       <>
@@ -49,7 +58,7 @@ export default class LangchainReplicaProvider
         >
           <Input
             type="password"
-            value={config.api_key}
+            value={config.api_key || ""}
             setValue={async (value) => {
               config.api_key = value;
               global.plugin.encryptAllKeys();
@@ -66,9 +75,9 @@ export default class LangchainReplicaProvider
           sectionId={props.sectionId}
         >
           <Input
-            value={config.engine}
+            value={config.model}
             setValue={async (value) => {
-              config.engine = value;
+              config.model = value;
               global.triggerReload();
               // TODO: it could use a debounce here
               await global.plugin.saveSettings();
@@ -76,12 +85,12 @@ export default class LangchainReplicaProvider
           />
         </SettingItem>
         {/* <ModelsHandler /> */}
-        <div className="flex flex-col gap-2">
-          <div className="text-lg opacity-70">Useful links</div>
+        <div className="plug-tg-flex plug-tg-flex-col plug-tg-gap-2">
+          <div className="plug-tg-text-lg plug-tg-opacity-70">Useful links</div>
           <a href="https://beta.openai.com/signup/">
             <SettingItem
               name="Create account OpenAI"
-              className="text-xs opacity-50 hover:opacity-100"
+              className="plug-tg-text-xs plug-tg-opacity-50 hover:plug-tg-opacity-100"
               register={props.register}
               sectionId={props.sectionId}
             >
@@ -91,7 +100,7 @@ export default class LangchainReplicaProvider
           <a href="https://beta.openai.com/docs/api-reference/introduction">
             <SettingItem
               name="API documentation"
-              className="text-xs opacity-50 hover:opacity-100"
+              className="plug-tg-text-xs plug-tg-opacity-50 hover:plug-tg-opacity-100"
               register={props.register}
               sectionId={props.sectionId}
             >
@@ -101,7 +110,7 @@ export default class LangchainReplicaProvider
           <a href="https://beta.openai.com/docs/models/overview">
             <SettingItem
               name="more information"
-              className="text-xs opacity-50 hover:opacity-100"
+              className="plug-tg-text-xs plug-tg-opacity-50 hover:plug-tg-opacity-100"
               register={props.register}
               sectionId={props.sectionId}
             >

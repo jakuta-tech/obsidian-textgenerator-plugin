@@ -1,50 +1,65 @@
-import LangchainBase from "./base";
 import React from "react";
-import LLMProviderInterface, { LLMConfig } from "../interface";
-import SettingItem from "#/ui/settings/components/item";
-import useGlobal from "#/ui/context/global";
-import { IconExternalLink } from "@tabler/icons-react";
-import { useToggle } from "usehooks-ts";
-import Input from "#/ui/settings/components/input";
-import { BaseLLMParams } from "langchain/llms/base";
-import { HuggingFaceInference, HFInput } from "langchain/llms/hf";
 import debug from "debug";
+import LangchainBase from "./base";
+import LLMProviderInterface, { LLMConfig } from "../interface";
+import { IconExternalLink } from "@tabler/icons-react";
+import { BaseLLMParams } from "@langchain/core/language_models/llms";
+import type { HFInput } from "@langchain/community/llms/hf";
 
 const logger = debug("textgenerator:llmProvider:hf");
 
-const id = "hf";
+import { Input, SettingItem, useGlobal } from "../refs";
+
 export default class LangchainHFProvider
   extends LangchainBase
-  implements LLMProviderInterface
-{
-  id = id;
+  implements LLMProviderInterface {
+  static provider = "Langchain";
+  static id = "Huggingface (Langchain)" as const;
+  static slug = "hf" as const;
+  static displayName = "Huggingface";
+
+  llmPredict = true;
   streamable = false;
+  provider = LangchainHFProvider.provider;
+  id = LangchainHFProvider.id;
+  originalId = LangchainHFProvider.id;
   getConfig(options: LLMConfig): Partial<HFInput & BaseLLMParams> {
     console.log(options);
     return this.cleanConfig({
       apiKey: options.otherOptions.api_key,
-
       // ------------Necessary stuff--------------
-      model: options.otherOptions.engine as any,
+      model: options.model || (options.otherOptions.model as any),
+      modelKwargs: options.modelKwargs,
       maxTokens: options.max_tokens,
       temperature: options.temperature,
-      frequencyPenalty: options.frequency_penalty,
+      frequencyPenalty: +options.frequency_penalty || 0,
+      presencePenalty: +options.presence_penalty || 0,
       n: options.n,
       stop: options.stop,
       streaming: options.stream,
       maxRetries: 3,
+      parameters: {
+        candidate_labels: ["refund", "legal", "faq"],
+      },
+      headers: options.headers || undefined,
     });
   }
 
-  getLLM(options: LLMConfig) {
-    return new HuggingFaceInference({
-      ...this.getConfig(options),
-    } as any);
+  async load() {
+    const { HuggingFaceInference } = await import("@langchain/community/llms/hf");
+    this.llmClass = HuggingFaceInference;
   }
+
+  //   getLLM(options: LLMConfig) {
+  //     return new HuggingFaceInference({
+  //       ...this.getConfig(options),
+  //     } as any);
+  //   }
 
   RenderSettings(props: Parameters<LLMProviderInterface["RenderSettings"]>[0]) {
     const global = useGlobal();
 
+    const id = props.self.id;
     const config = (global.plugin.settings.LLMProviderOptions[id] ??= {});
     return (
       <>
@@ -55,7 +70,7 @@ export default class LangchainHFProvider
         >
           <Input
             type="password"
-            value={config.api_key}
+            value={config.api_key || ""}
             setValue={async (value) => {
               config.api_key = value;
               global.plugin.encryptAllKeys();
@@ -72,41 +87,41 @@ export default class LangchainHFProvider
           sectionId={props.sectionId}
         >
           <Input
-            value={config.engine}
+            value={config.model}
             setValue={async (value) => {
-              config.engine = value;
+              config.model = value;
               global.triggerReload();
               // TODO: it could use a debounce here
               await global.plugin.saveSettings();
             }}
           />
         </SettingItem>
-        <div className="flex flex-col gap-2">
-          <div className="text-lg opacity-70">Useful links</div>
-          <a href="https://beta.openai.com/signup/">
+        <div className="plug-tg-flex plug-tg-flex-col plug-tg-gap-2">
+          <div className="plug-tg-text-lg plug-tg-opacity-70">Useful links</div>
+          <a href="https://huggingface.co/settings/tokens">
             <SettingItem
-              name="Create account OpenAI"
-              className="text-xs opacity-50 hover:opacity-100"
+              name="Setup API token"
+              className="plug-tg-text-xs plug-tg-opacity-50 hover:plug-tg-opacity-100"
               register={props.register}
               sectionId={props.sectionId}
             >
               <IconExternalLink />
             </SettingItem>
           </a>
-          <a href="https://beta.openai.com/docs/api-reference/introduction">
+          <a href="https://huggingface.co/docs/api-inference/index">
             <SettingItem
               name="API documentation"
-              className="text-xs opacity-50 hover:opacity-100"
+              className="plug-tg-text-xs plug-tg-opacity-50 hover:plug-tg-opacity-100"
               register={props.register}
               sectionId={props.sectionId}
             >
               <IconExternalLink />
             </SettingItem>
           </a>
-          <a href="https://beta.openai.com/docs/models/overview">
+          <a href="https://huggingface.co/docs/api-inference/faq">
             <SettingItem
-              name="more information"
-              className="text-xs opacity-50 hover:opacity-100"
+              name="More information"
+              className="plug-tg-text-xs plug-tg-opacity-50 hover:plug-tg-opacity-100"
               register={props.register}
               sectionId={props.sectionId}
             >

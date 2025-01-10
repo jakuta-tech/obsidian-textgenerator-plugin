@@ -1,27 +1,69 @@
-import ProviderBase from "./base";
-import CustomProvider from "./custom/base";
+import CustomProvider from "./custom/custom";
+import AnthropicCustomProvider from "./custom/anthropic";
 
-import ChatgptLangchainProvider from "./langchain/chatgpt";
-// import LangchainReplicaProvider from "./langchain/replica"
+import LangchainOpenAIChatProvider from "./langchain/openaiChat";
+import LangchainMistralAIChatProvider from "./langchain/mistralaiChat";
+import LangchainOpenAIInstructProvider from "./langchain/openaiInstruct";
 import LangchainHFProvider from "./langchain/hf";
 import ChatanthropicLangchainProvider from "./langchain/chatanthropic";
-import OlamaLangchainProvider from "./langchain/olama";
-import LLMProviderRegistry from "./registery";
-import LangchainAzureChatgptProvider from "./langchain/azure.chatgpt";
+import OllamaLangchainProvider from "./langchain/ollama";
+import LangchainAzureOpenAIChatProvider from "./langchain/azureOpenAIChat";
+import LangchainAzureOpenAIInstructProvider from "./langchain/azureOpenAIInstruct";
 import LangchainPalmProvider from "./langchain/palm";
+import LangchainChatGoogleGenerativeAIProvider from "./langchain/googleGenerativeAI";
+import LangchainOpenAIAgentProvider from "./langchain/openaiAgent";
+// import LangchainReplicaProvider from "./langchain/replica"
 
-const DefaultProviders = {
-	"Chatgpt (Langchain)": ChatgptLangchainProvider,
-	"Azure Chatgpt (Langchain)": LangchainAzureChatgptProvider,
-	"Google Palm (Langchain)": LangchainPalmProvider,
-	"Chat Anthropic (Langchain)": ChatanthropicLangchainProvider,
-	"Olama (Langchain)": OlamaLangchainProvider,
-	// "Replica (Langchain)": LangchainReplicaProvider,
-	"Huggingface (Langchain)": LangchainHFProvider,
-	"Custom (Custom)": CustomProvider,
-} as const;
+// import { LOCClone1, LOCClone2 } from "./langchain/clones";
 
-export type LLMProviderType = keyof typeof DefaultProviders;
-export const LLMProviderRegistery = new LLMProviderRegistry<ProviderBase>(
-	DefaultProviders as any
-);
+export const defaultProviders = [
+  // openai
+  LangchainOpenAIChatProvider,
+  LangchainOpenAIInstructProvider,
+  LangchainOpenAIAgentProvider,
+
+  // google
+  LangchainChatGoogleGenerativeAIProvider,
+  LangchainPalmProvider,
+
+  // ollama
+  OllamaLangchainProvider,
+
+  // huggingface
+  LangchainHFProvider,
+
+  // mistralAI
+  LangchainMistralAIChatProvider,
+
+  // anthropic
+  ChatanthropicLangchainProvider,
+
+  // azure
+  LangchainAzureOpenAIChatProvider,
+  LangchainAzureOpenAIInstructProvider,
+
+  // replica (disabled because it doesn't work)
+  // "Replica (Langchain)": LangchainReplicaProvider,
+
+  // anthropic custom
+  AnthropicCustomProvider,
+
+  // LOCClone1,
+  // LOCClone2,
+
+  // custom
+  CustomProvider,
+];
+
+export type llmType = (typeof defaultProviders)[number]["id"];
+export type llmSlugType = (typeof defaultProviders)[number]["slug"];
+export type LLMProviderType = llmType;
+
+export const defaultProvidersMap: Record<
+  any,
+  (typeof defaultProviders)[number]
+> = {} as any;
+
+for (const llm of defaultProviders) {
+  defaultProvidersMap[llm.id] = llm;
+}

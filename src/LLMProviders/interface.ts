@@ -1,21 +1,41 @@
-import type { Register } from "#/ui/settings/sections";
-import { Message } from "src/types";
+import type { LLMChain } from "langchain/chains";
+import type { Message } from "src/types";
+import type { ContextTemplate, Register } from "./refs";
+import { AI_MODELS } from "#/constants";
+import { ModelType } from "#/lib/models";
 
 export default interface LLMProviderInterface {
   streamable?: boolean;
+  mobileSupport?: boolean;
   id: string;
+  slug?: string;
+  provider: string;
+  cloned?: boolean;
+  /** original id before the cloning */
+  originalId: string;
+
+  load(): Promise<any>;
+
   generate(
     messages: Message[],
     reqParams: Partial<Omit<LLMConfig, "n">>,
     onToken?: (
       token: string,
       first: boolean
-    ) => Promise<string | void | null | undefined>
+    ) => Promise<string | void | null | undefined>,
+    customConfig?: any
   ): Promise<string>;
 
   generateMultiple(
     messages: Message[],
-    reqParams: Partial<LLMConfig>
+    reqParams: Partial<LLMConfig>,
+    customConfig?: any
+  ): Promise<string[]>;
+
+  generateBatch(
+    batches: { messages: Message[]; reqParams: Partial<LLMConfig> }[],
+    customConfig?: any,
+    onOneFinishs?: (content: string, index: number) => void
   ): Promise<string[]>;
 
   RenderSettings(props: {
@@ -32,19 +52,28 @@ export default interface LLMProviderInterface {
   calcPrice(tokens: number, reqParams: Partial<LLMConfig>): Promise<number>;
 
   getSettings(): Record<string, any>;
+
+  getModels(): (ModelType & { id: string })[];
+
+  makeMessage(content: any, role: "system" | "user" | "assistant"): Message;
 }
 
 export interface LLMConfig {
   api_key: string;
   endpoint?: string;
+  basePath?: string;
   requestParams: RequestInit;
   otherOptions: any;
   stream: boolean;
   stop?: string[];
   n?: number;
-  engine: string;
+  model: string;
   max_tokens: number;
   temperature: number;
   frequency_penalty: number;
+  presence_penalty: number;
   llmPredict: boolean;
+  bodyParams?: any;
+  modelKwargs?: any;
+  headers?: string;
 }

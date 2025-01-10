@@ -12,6 +12,7 @@ import {
 import { App, Modal, TFile } from "obsidian";
 import TextGeneratorPlugin from "../main";
 import { createRoot } from "react-dom/client";
+import CopyButton from "./components/copyButton";
 
 const ContentExtractorComponent = ({
   p,
@@ -47,29 +48,37 @@ const ContentExtractorComponent = ({
     return truncatedUrl;
   };
   const handleExtractClick = async () => {
-    const contentExtractor = new ContentExtractor(app, plugin);
-    const extractedUrls = [];
+    try {
+      const contentExtractor = new ContentExtractor(app, plugin);
+      const extractedUrls: {
+        url: string;
+        file: any;
+        extractorMethod: any;
+      }[] = [];
 
-    // Iterate through each extractor method and add the extracted URLs to the array.
-    const extractorMethods = getExtractorMethods();
+      // Iterate through each extractor method and add the extracted URLs to the array.
+      const extractorMethods = getExtractorMethods();
 
-    for (let index = 0; index < extractorMethods.length; index++) {
-      const extractorMethod = extractorMethods[index];
-      contentExtractor.setExtractor(extractorMethod);
-      const files = await contentExtractor.extract(
-        app.workspace.getActiveFile().path
-      );
-      if (files.length > 0) {
-        extractedUrls.push(
-          ...files.map((file: any) => ({
-            url: truncateUrl(file?.path || file, 50),
-            file,
-            extractorMethod,
-          }))
+      for (let index = 0; index < extractorMethods.length; index++) {
+        const extractorMethod = extractorMethods[index];
+        contentExtractor.setExtractor(extractorMethod);
+        const files = await contentExtractor.extract(
+          app.workspace.getActiveFile().path
         );
+        if (files.length > 0) {
+          extractedUrls.push(
+            ...files.map((file: any) => ({
+              url: truncateUrl(file?.path || file, 50),
+              file,
+              extractorMethod,
+            }))
+          );
+        }
       }
+      setUrlResults(extractedUrls);
+    } catch (err: any) {
+      plugin.handelError(err);
     }
-    setUrlResults(extractedUrls);
   };
 
   const handleConvertClick = async (
@@ -78,7 +87,9 @@ const ContentExtractorComponent = ({
   ) => {
     const contentExtractor = new ContentExtractor(app, plugin);
     contentExtractor.setExtractor(extractorMethod);
-    const convertedText = await contentExtractor.convert(file);
+    const convertedText = await contentExtractor.convert(
+      (file.path || file) as string
+    );
     setConvertedResults((convertedResults) => ({
       ...convertedResults,
       [(file.path || file) as string]: convertedText,
@@ -107,28 +118,28 @@ const ContentExtractorComponent = ({
   }, []);
 
   return (
-    <div className="container mx-auto">
-      <h1 className="mb-4 text-center text-2xl  font-bold">
+    <div className="plug-tg-container plug-tg-mx-auto">
+      <h1 className="plug-tg-mb-4 plug-tg-text-center plug-tg-text-2xl plug-tg-font-bold">
         Text Extractor Tool
       </h1>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="">
+      <table className="plug-tg-min-w-full plug-tg-divide-y plug-tg-divide-gray-200">
+        <thead>
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium  uppercase tracking-wider">
+            <th className="plug-tg-px-6 plug-tg-py-3 plug-tg-text-left plug-tg-text-xs plug-tg-font-medium plug-tg-uppercase plug-tg-tracking-wider">
               File/URL
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium  uppercase tracking-wider">
+            <th className="plug-tg-px-6 plug-tg-py-3 plug-tg-text-left plug-tg-text-xs plug-tg-font-medium plug-tg-uppercase plug-tg-tracking-wider">
               Action
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200">
+        <tbody className="plug-tg-divide-y plug-tg-divide-gray-200">
           {urlResults.map((urlResult, index) => (
             <tr key={index}>
-              <td className="whitespace-nowrap px-6 py-4 text-sm ">
+              <td className="plug-tg-whitespace-nowrap plug-tg-px-6 plug-tg-py-4 plug-tg-text-sm">
                 {urlResult.url}
               </td>
-              <td className="whitespace-nowrap px-6 py-4 text-sm">
+              <td className="plug-tg-whitespace-nowrap plug-tg-px-6 plug-tg-py-4 plug-tg-text-sm">
                 <button
                   onClick={() =>
                     handleConvertClick(
@@ -136,8 +147,8 @@ const ContentExtractorComponent = ({
                       urlResult.extractorMethod
                     )
                   }
-                  className="300 rounded bg-green-500 px-4 py-1 font-semibold hover:bg-green-600 focus:outline-none focus:ring-2
-                  focus:ring-green-300/50"
+                  className="plug-tg-rounded plug-tg-bg-green-500 plug-tg-px-4 plug-tg-py-1 plug-tg-font-semibold hover:plug-tg-bg-green-600 focus:plug-tg-outline-none focus:plug-tg-ring-2
+                  focus:plug-tg-ring-green-300/50"
                 >
                   Convert
                 </button>
@@ -147,11 +158,11 @@ const ContentExtractorComponent = ({
         </tbody>
       </table>
       {Object.entries(convertedResults).map(([url, result], index) => (
-        <div key={index} className="relative my-6">
-          <h2 className="mb-2 font-bold">{url}</h2>
+        <div key={index} className="plug-tg-relative plug-tg-my-6">
+          <h2 className="plug-tg-mb-2 plug-tg-font-bold">{url}</h2>
           <textarea
             dir="auto"
-            className="mt-1 h-24 w-full resize-none rounded border border-gray-300 p-2 focus:border-blue-500"
+            className="plug-tg-mt-1 plug-tg-h-24 plug-tg-w-full plug-tg-resize-none plug-tg-rounded plug-tg-border plug-tg-border-gray-300 plug-tg-p-2 focus:plug-tg-border-blue-500"
             value={result}
             onChange={(event) => handleTextAreaChange(event, url)}
           />
@@ -175,7 +186,7 @@ export class TextExtractorTool extends Modal {
   }
 
   async onOpen() {
-    this.containerEl.createEl("div", { cls: "PackageManager" });
+    // this.containerEl.createEl("div", { cls: "plug-tg-packageManager" });
     this.root = createRoot(this.containerEl.children[1]);
     this.root.render(
       <React.StrictMode>
@@ -192,33 +203,6 @@ export class TextExtractorTool extends Modal {
     this.root.unmount();
   }
 }
-
-const CopyButton = (props: { textToCopy: string }) => {
-  const [copyStatus, setCopyStatus] = useState("Copy");
-
-  const handleCopyClick = () => {
-    navigator.clipboard.writeText(props.textToCopy).then(
-      () => {
-        setCopyStatus("Copied!");
-        setTimeout(() => setCopyStatus("Copy"), 1500);
-      },
-      (err) => {
-        console.error("Could not copy text: ", err);
-        setCopyStatus("Error");
-      }
-    );
-  };
-
-  return (
-    <button
-      onClick={handleCopyClick}
-      title={copyStatus}
-      className="text-gray absolute bottom-[calc(-30px)] right-0 mb-1 mr-1 rounded-none bg-gray-300 px-2 py-1 text-xs font-semibold hover:bg-blue-600 focus:outline-none focus:ring-0"
-    >
-      {copyStatus}
-    </button>
-  );
-};
 
 const RemoveButton = (props: {
   handleRemoveClick: MouseEventHandler<HTMLButtonElement> | undefined;
